@@ -53,42 +53,12 @@ class _HomePageState extends State<HomePage> {
   };
 
   final List<Stock> stocks = const [
-    Stock(
-      'أرامكو السعودية',
-      '2222',
-      24.80,
-      1.22,
-    ),
-    Stock(
-      'مصرف الراجحي',
-      '1120',
-      96.40,
-      0.84,
-    ),
-    Stock(
-      'سابك',
-      '2010',
-      58.75,
-      -0.51,
-    ),
-    Stock(
-      'الأهلي السعودي',
-      '1180',
-      39.20,
-      1.03,
-    ),
-    Stock(
-      'الاتصالات السعودية',
-      '7010',
-      44.10,
-      0.46,
-    ),
-    Stock(
-      'معادن',
-      '1211',
-      54.60,
-      -0.73,
-    ),
+    Stock('أرامكو السعودية', '2222', 24.80, 1.22),
+    Stock('مصرف الراجحي', '1120', 96.40, 0.84),
+    Stock('سابك', '2010', 58.75, -0.51),
+    Stock('الأهلي السعودي', '1180', 39.20, 1.03),
+    Stock('الاتصالات السعودية', '7010', 44.10, 0.46),
+    Stock('معادن', '1211', 54.60, -0.73),
   ];
 
   @override
@@ -141,39 +111,23 @@ class _HomePageState extends State<HomePage> {
           },
           destinations: const [
             NavigationDestination(
-              icon: Icon(
-                Icons.home_outlined,
-              ),
-              selectedIcon: Icon(
-                Icons.home,
-              ),
+              icon: Icon(Icons.home_outlined),
+              selectedIcon: Icon(Icons.home),
               label: 'السوق',
             ),
             NavigationDestination(
-              icon: Icon(
-                Icons.star_outline,
-              ),
-              selectedIcon: Icon(
-                Icons.star,
-              ),
+              icon: Icon(Icons.star_outline),
+              selectedIcon: Icon(Icons.star),
               label: 'المتابعة',
             ),
             NavigationDestination(
-              icon: Icon(
-                Icons.pie_chart_outline,
-              ),
-              selectedIcon: Icon(
-                Icons.pie_chart,
-              ),
+              icon: Icon(Icons.pie_chart_outline),
+              selectedIcon: Icon(Icons.pie_chart),
               label: 'المحفظة',
             ),
             NavigationDestination(
-              icon: Icon(
-                Icons.notifications_outlined,
-              ),
-              selectedIcon: Icon(
-                Icons.notifications,
-              ),
+              icon: Icon(Icons.notifications_outlined),
+              selectedIcon: Icon(Icons.notifications),
               label: 'التنبيهات',
             ),
           ],
@@ -193,54 +147,38 @@ class _HomePageState extends State<HomePage> {
             fontWeight: FontWeight.bold,
           ),
         ),
-
-        const SizedBox(
-          height: 12,
-        ),
-
+        const SizedBox(height: 12),
         const Card(
           child: Padding(
             padding: EdgeInsets.all(18),
             child: Column(
-              crossAxisAlignment:
-                  CrossAxisAlignment.start,
+              crossAxisAlignment: CrossAxisAlignment.start,
               children: [
                 Text(
                   'مؤشر تاسي',
-                  style: TextStyle(
-                    fontSize: 16,
-                  ),
+                  style: TextStyle(fontSize: 16),
                 ),
-                SizedBox(
-                  height: 6,
-                ),
+                SizedBox(height: 6),
                 Text(
                   '11,245.30',
                   style: TextStyle(
                     fontSize: 32,
-                    fontWeight:
-                        FontWeight.bold,
+                    fontWeight: FontWeight.bold,
                   ),
                 ),
                 Text(
                   '+0.76%',
                   style: TextStyle(
-                    color:
-                        Colors.greenAccent,
+                    color: Colors.greenAccent,
                     fontSize: 18,
-                    fontWeight:
-                        FontWeight.bold,
+                    fontWeight: FontWeight.bold,
                   ),
                 ),
               ],
             ),
           ),
         ),
-
-        const SizedBox(
-          height: 18,
-        ),
-
+        const SizedBox(height: 18),
         const Text(
           'الأسهم',
           style: TextStyle(
@@ -248,13 +186,8 @@ class _HomePageState extends State<HomePage> {
             fontWeight: FontWeight.bold,
           ),
         ),
-
-        const SizedBox(
-          height: 8,
-        ),
-
+        const SizedBox(height: 8),
         ...stocks.map(stockTile),
-
         const Padding(
           padding: EdgeInsets.all(14),
           child: Text(
@@ -271,23 +204,17 @@ class _HomePageState extends State<HomePage> {
   }
 
   Widget stockTile(Stock stock) {
-    final bool positive =
-        stock.change >= 0;
+    final bool positive = stock.change >= 0;
 
     return Card(
-      margin: const EdgeInsets.only(
-        bottom: 9,
-      ),
+      margin: const EdgeInsets.only(bottom: 9),
       child: ListTile(
         onTap: () {
           openStock(stock);
         },
         leading: CircleAvatar(
           child: Text(
-            stock.symbol.substring(
-              0,
-              2,
-            ),
+            stock.symbol.substring(0, 2),
           ),
         ),
         title: Text(
@@ -296,23 +223,18 @@ class _HomePageState extends State<HomePage> {
             fontWeight: FontWeight.bold,
           ),
         ),
-        subtitle: Text(
-          stock.symbol,
-        ),
+        subtitle: Text(stock.symbol),
         trailing: Row(
           mainAxisSize: MainAxisSize.min,
           children: [
             Column(
-              mainAxisAlignment:
-                  MainAxisAlignment.center,
-              crossAxisAlignment:
-                  CrossAxisAlignment.end,
+              mainAxisAlignment: MainAxisAlignment.center,
+              crossAxisAlignment: CrossAxisAlignment.end,
               children: [
                 Text(
                   '${stock.price.toStringAsFixed(2)} ر.س',
                   style: const TextStyle(
-                    fontWeight:
-                        FontWeight.bold,
+                    fontWeight: FontWeight.bold,
                   ),
                 ),
                 Text(
@@ -321,38 +243,26 @@ class _HomePageState extends State<HomePage> {
                     color: positive
                         ? Colors.greenAccent
                         : Colors.redAccent,
-                    fontWeight:
-                        FontWeight.bold,
+                    fontWeight: FontWeight.bold,
                   ),
                 ),
               ],
             ),
-
             IconButton(
               onPressed: () {
                 setState(() {
-                  if (watch.contains(
-                    stock.symbol,
-                  )) {
-                    watch.remove(
-                      stock.symbol,
-                    );
+                  if (watch.contains(stock.symbol)) {
+                    watch.remove(stock.symbol);
                   } else {
-                    watch.add(
-                      stock.symbol,
-                    );
+                    watch.add(stock.symbol);
                   }
                 });
               },
               icon: Icon(
-                watch.contains(
-                  stock.symbol,
-                )
+                watch.contains(stock.symbol)
                     ? Icons.star
                     : Icons.star_border,
-                color: watch.contains(
-                  stock.symbol,
-                )
+                color: watch.contains(stock.symbol)
                     ? Colors.amber
                     : null,
               ),
@@ -366,9 +276,7 @@ class _HomePageState extends State<HomePage> {
   Widget watchPage() {
     final items = stocks
         .where(
-          (stock) => watch.contains(
-            stock.symbol,
-          ),
+          (stock) => watch.contains(stock.symbol),
         )
         .toList();
 
@@ -390,11 +298,7 @@ class _HomePageState extends State<HomePage> {
             fontWeight: FontWeight.bold,
           ),
         ),
-
-        const SizedBox(
-          height: 10,
-        ),
-
+        const SizedBox(height: 10),
         ...items.map(stockTile),
       ],
     );
@@ -411,86 +315,51 @@ class _HomePageState extends State<HomePage> {
             fontWeight: FontWeight.bold,
           ),
         ),
-
-        SizedBox(
-          height: 12,
-        ),
-
+        SizedBox(height: 12),
         Card(
           child: Padding(
             padding: EdgeInsets.all(20),
             child: Column(
               children: [
-                Text(
-                  'القيمة الحالية',
-                ),
-
-                SizedBox(
-                  height: 6,
-                ),
-
+                Text('القيمة الحالية'),
+                SizedBox(height: 6),
                 Text(
                   '25,730 ر.س',
                   style: TextStyle(
                     fontSize: 30,
-                    fontWeight:
-                        FontWeight.bold,
+                    fontWeight: FontWeight.bold,
                   ),
                 ),
-
                 Text(
                   '+730 ر.س (+2.92%)',
                   style: TextStyle(
-                    color:
-                        Colors.greenAccent,
-                    fontWeight:
-                        FontWeight.bold,
+                    color: Colors.greenAccent,
+                    fontWeight: FontWeight.bold,
                   ),
                 ),
               ],
             ),
           ),
         ),
-
         Card(
           child: ListTile(
-            title: Text(
-              'أرامكو السعودية',
-            ),
-            subtitle: Text(
-              '300 سهم',
-            ),
-            trailing: Text(
-              '7,440 ر.س',
-            ),
+            title: Text('أرامكو السعودية'),
+            subtitle: Text('300 سهم'),
+            trailing: Text('7,440 ر.س'),
           ),
         ),
-
         Card(
           child: ListTile(
-            title: Text(
-              'مصرف الراجحي',
-            ),
-            subtitle: Text(
-              '100 سهم',
-            ),
-            trailing: Text(
-              '9,640 ر.س',
-            ),
+            title: Text('مصرف الراجحي'),
+            subtitle: Text('100 سهم'),
+            trailing: Text('9,640 ر.س'),
           ),
         ),
-
         Card(
           child: ListTile(
-            title: Text(
-              'سابك',
-            ),
-            subtitle: Text(
-              '100 سهم',
-            ),
-            trailing: Text(
-              '5,875 ر.س',
-            ),
+            title: Text('سابك'),
+            subtitle: Text('100 سهم'),
+            trailing: Text('5,875 ر.س'),
           ),
         ),
       ],
@@ -508,61 +377,32 @@ class _HomePageState extends State<HomePage> {
             fontWeight: FontWeight.bold,
           ),
         ),
-
-        SizedBox(
-          height: 12,
-        ),
-
+        SizedBox(height: 12),
         Card(
           child: ListTile(
-            leading: Icon(
-              Icons.price_change,
-            ),
-            title: Text(
-              'تنبيه السعر',
-            ),
-            subtitle: Text(
-              'أرامكو عند 25.00 ر.س',
-            ),
+            leading: Icon(Icons.price_change),
+            title: Text('تنبيه السعر'),
+            subtitle: Text('أرامكو عند 25.00 ر.س'),
           ),
         ),
-
         Card(
           child: ListTile(
-            leading: Icon(
-              Icons.show_chart,
-            ),
-            title: Text(
-              'اختراق مقاومة',
-            ),
-            subtitle: Text(
-              'الراجحي أعلى من 98.00 ر.س',
-            ),
+            leading: Icon(Icons.show_chart),
+            title: Text('اختراق مقاومة'),
+            subtitle: Text('الراجحي أعلى من 98.00 ر.س'),
           ),
         ),
-
         Card(
           child: ListTile(
-            leading: Icon(
-              Icons.speed,
-            ),
-            title: Text(
-              'RSI',
-            ),
-            subtitle: Text(
-              'التشبع الشرائي والبيعي',
-            ),
+            leading: Icon(Icons.speed),
+            title: Text('RSI'),
+            subtitle: Text('التشبع الشرائي والبيعي'),
           ),
         ),
-
         Card(
           child: ListTile(
-            leading: Icon(
-              Icons.bar_chart,
-            ),
-            title: Text(
-              'حجم التداول',
-            ),
+            leading: Icon(Icons.bar_chart),
+            title: Text('حجم التداول'),
             subtitle: Text(
               'ارتفاع غير معتاد في حجم التداول',
             ),
@@ -586,8 +426,7 @@ class _HomePageState extends State<HomePage> {
   }
 }
 
-class StockDetails
-    extends StatefulWidget {
+class StockDetails extends StatefulWidget {
   final Stock stock;
 
   const StockDetails({
@@ -601,31 +440,23 @@ class StockDetails
   }
 }
 
-class _StockDetailsState
-    extends State<StockDetails> {
+class _StockDetailsState extends State<StockDetails> {
   int period = 0;
 
   @override
-  Widget build(
-    BuildContext context,
-  ) {
+  Widget build(BuildContext context) {
     final stock = widget.stock;
-
-    final bool positive =
-        stock.change >= 0;
+    final bool positive = stock.change >= 0;
 
     return Directionality(
       textDirection: TextDirection.rtl,
       child: Scaffold(
         appBar: AppBar(
-          title: Text(
-            stock.name,
-          ),
+          title: Text(stock.name),
           centerTitle: true,
         ),
         body: ListView(
-          padding:
-              const EdgeInsets.all(16),
+          padding: const EdgeInsets.all(16),
           children: [
             Text(
               stock.symbol,
@@ -633,16 +464,13 @@ class _StockDetailsState
                 color: Colors.grey,
               ),
             ),
-
             Text(
               '${stock.price.toStringAsFixed(2)} ر.س',
               style: const TextStyle(
                 fontSize: 34,
-                fontWeight:
-                    FontWeight.bold,
+                fontWeight: FontWeight.bold,
               ),
             ),
-
             Text(
               '${positive ? '+' : ''}${stock.change.toStringAsFixed(2)}%',
               style: TextStyle(
@@ -650,94 +478,62 @@ class _StockDetailsState
                 color: positive
                     ? Colors.greenAccent
                     : Colors.redAccent,
-                fontWeight:
-                    FontWeight.bold,
+                fontWeight: FontWeight.bold,
               ),
             ),
-
-            const SizedBox(
-              height: 14,
-            ),
-
+            const SizedBox(height: 14),
             SegmentedButton<int>(
               segments: const [
                 ButtonSegment<int>(
                   value: 0,
-                  label: Text(
-                    'يومي',
-                  ),
+                  label: Text('يومي'),
                 ),
                 ButtonSegment<int>(
                   value: 1,
-                  label: Text(
-                    'أسبوعي',
-                  ),
+                  label: Text('أسبوعي'),
                 ),
                 ButtonSegment<int>(
                   value: 2,
-                  label: Text(
-                    'شهري',
-                  ),
+                  label: Text('شهري'),
                 ),
                 ButtonSegment<int>(
                   value: 3,
-                  label: Text(
-                    'سنوي',
-                  ),
+                  label: Text('سنوي'),
                 ),
               ],
-              selected: {
-                period,
-              },
+              selected: {period},
               showSelectedIcon: false,
-              onSelectionChanged:
-                  (value) {
+              onSelectionChanged: (value) {
                 setState(() {
-                  period =
-                      value.first;
+                  period = value.first;
                 });
               },
             ),
-
-            const SizedBox(
-              height: 18,
-            ),
-
+            const SizedBox(height: 18),
             const Card(
               child: Padding(
-                padding:
-                    EdgeInsets.all(18),
+                padding: EdgeInsets.all(18),
                 child: SizedBox(
                   height: 140,
                   child: Center(
                     child: Icon(
                       Icons.show_chart,
                       size: 110,
-                      color: Colors
-                          .greenAccent,
+                      color: Colors.greenAccent,
                     ),
                   ),
                 ),
               ),
             ),
-
-            const SizedBox(
-              height: 14,
-            ),
-
+            const SizedBox(height: 14),
             const Text(
               'المؤشرات الفنية',
               style: TextStyle(
                 fontSize: 20,
-                fontWeight:
-                    FontWeight.bold,
+                fontWeight: FontWeight.bold,
               ),
             ),
-
-            const SizedBox(
-              height: 10,
-            ),
-
+            const SizedBox(height: 10),
             Wrap(
               spacing: 8,
               runSpacing: 8,
@@ -774,43 +570,27 @@ class _StockDetailsState
                 ),
               ],
             ),
-
-            const SizedBox(
-              height: 16,
-            ),
-
+            const SizedBox(height: 16),
             Row(
               children: [
                 Expanded(
                   child: level(
                     'الدعم',
-                    (stock.price *
-                            0.96)
-                        .toStringAsFixed(
-                            2),
+                    (stock.price * 0.96)
+                        .toStringAsFixed(2),
                   ),
                 ),
-
-                const SizedBox(
-                  width: 8,
-                ),
-
+                const SizedBox(width: 8),
                 Expanded(
                   child: level(
                     'المقاومة',
-                    (stock.price *
-                            1.04)
-                        .toStringAsFixed(
-                            2),
+                    (stock.price * 1.04)
+                        .toStringAsFixed(2),
                   ),
                 ),
               ],
             ),
-
-            const SizedBox(
-              height: 14,
-            ),
-
+            const SizedBox(height: 14),
             const Card(
               child: ListTile(
                 leading: Icon(
@@ -837,17 +617,13 @@ class _StockDetailsState
   ) {
     return Container(
       width: 155,
-      padding:
-          const EdgeInsets.all(12),
+      padding: const EdgeInsets.all(12),
       decoration: BoxDecoration(
-        color:
-            const Color(0xFF142017),
-        borderRadius:
-            BorderRadius.circular(14),
+        color: const Color(0xFF142017),
+        borderRadius: BorderRadius.circular(14),
       ),
       child: Column(
-        crossAxisAlignment:
-            CrossAxisAlignment.start,
+        crossAxisAlignment: CrossAxisAlignment.start,
         children: [
           Text(
             title,
@@ -855,21 +631,17 @@ class _StockDetailsState
               color: Colors.grey,
             ),
           ),
-
           Text(
             value,
             style: const TextStyle(
               fontSize: 20,
-              fontWeight:
-                  FontWeight.bold,
+              fontWeight: FontWeight.bold,
             ),
           ),
-
           Text(
             status,
             style: const TextStyle(
-              color:
-                  Colors.greenAccent,
+              color: Colors.greenAccent,
               fontSize: 12,
             ),
           ),
@@ -884,8 +656,7 @@ class _StockDetailsState
   ) {
     return Card(
       child: Padding(
-        padding:
-            const EdgeInsets.all(14),
+        padding: const EdgeInsets.all(14),
         child: Column(
           children: [
             Text(
@@ -894,13 +665,11 @@ class _StockDetailsState
                 color: Colors.grey,
               ),
             ),
-
             Text(
               '$value ر.س',
               style: const TextStyle(
                 fontSize: 20,
-                fontWeight:
-                    FontWeight.bold,
+                fontWeight: FontWeight.bold,
               ),
             ),
           ],
@@ -910,15 +679,13 @@ class _StockDetailsState
   }
 }
 
-class StockSearch
-    extends SearchDelegate<Stock?> {
+class StockSearch extends SearchDelegate<Stock?> {
   final List<Stock> stocks;
-
-  final void Function(Stock) open;
+  final void Function(Stock) openStock;
 
   StockSearch(
     this.stocks,
-    this.open,
+    this.openStock,
   );
 
   @override
@@ -934,9 +701,7 @@ class StockSearch
         onPressed: () {
           query = '';
         },
-        icon: const Icon(
-          Icons.clear,
-        ),
+        icon: const Icon(Icons.clear),
       ),
     ];
   }
@@ -947,10 +712,7 @@ class StockSearch
   ) {
     return IconButton(
       onPressed: () {
-        close(
-          context,
-          null,
-        );
+        close(context, null);
       },
       icon: const Icon(
         Icons.arrow_back,
@@ -962,26 +724,25 @@ class StockSearch
   Widget buildResults(
     BuildContext context,
   ) {
-    return resultList();
+    return resultList(context);
   }
 
   @override
   Widget buildSuggestions(
     BuildContext context,
   ) {
-    return resultList();
+    return resultList(context);
   }
 
-  Widget resultList() {
-    final results =
-        stocks.where((stock) {
-      return stock.name.contains(
-            query,
-          ) ||
-          stock.symbol.contains(
-            query,
-          );
-    }).toList();
+  Widget resultList(
+    BuildContext context,
+  ) {
+    final results = stocks.where(
+      (stock) {
+        return stock.name.contains(query) ||
+            stock.symbol.contains(query);
+      },
+    ).toList();
 
     return Directionality(
       textDirection: TextDirection.rtl,
@@ -989,22 +750,14 @@ class StockSearch
         children: results.map(
           (stock) {
             return ListTile(
-              title: Text(
-                stock.name,
-              ),
-              subtitle: Text(
-                stock.symbol,
-              ),
+              title: Text(stock.name),
+              subtitle: Text(stock.symbol),
               trailing: Text(
                 '${stock.price.toStringAsFixed(2)} ر.س',
               ),
               onTap: () {
-                close(
-                  context,
-                  stock,
-                );
-
-                open(stock);
+                close(context, stock);
+                openStock(stock);
               },
             );
           },
