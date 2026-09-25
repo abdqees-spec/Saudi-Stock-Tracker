@@ -12,11 +12,11 @@ class SaudiStockApp extends StatelessWidget {
     return MaterialApp(
       debugShowCheckedModeBanner: false,
       title: 'متابع الأسهم السعودية',
-      theme: ThemeData.dark(useMaterial3: true),
-      home: const Directionality(
-        textDirection: TextDirection.rtl,
-        child: StockHomePage(),
+      theme: ThemeData(
+        brightness: Brightness.dark,
+        useMaterial3: true,
       ),
+      home: const StockHomePage(),
     );
   }
 }
@@ -31,56 +31,105 @@ class StockHomePage extends StatefulWidget {
 class _StockHomePageState extends State<StockHomePage> {
   int page = 0;
 
-  final stocks = const [
-    ['أرامكو السعودية', '2222', '27.85', '+1.46%'],
-    ['الراجحي', '1120', '98.40', '+0.82%'],
-    ['سابك', '2010', '61.70', '-0.48%'],
-    ['STC', '7010', '43.25', '+1.12%'],
-    ['الأهلي السعودي', '1180', '39.80', '-0.25%'],
+  final List<Map<String, String>> stocks = [
+    {
+      'name': 'أرامكو السعودية',
+      'symbol': '2222',
+      'price': '24.80',
+      'change': '+1.22%'
+    },
+    {
+      'name': 'مصرف الراجحي',
+      'symbol': '1120',
+      'price': '96.40',
+      'change': '+0.84%'
+    },
+    {
+      'name': 'سابك',
+      'symbol': '2010',
+      'price': '58.75',
+      'change': '-0.51%'
+    },
+    {
+      'name': 'الأهلي السعودي',
+      'symbol': '1180',
+      'price': '39.20',
+      'change': '+1.03%'
+    },
   ];
 
   @override
   Widget build(BuildContext context) {
-    return Scaffold(
-      backgroundColor: const Color(0xFF07111F),
-      appBar: AppBar(
-        backgroundColor: const Color(0xFF07111F),
-        title: const Text(
-          'متابع الأسهم السعودية',
-          style: TextStyle(fontWeight: FontWeight.bold),
+    return Directionality(
+      textDirection: TextDirection.rtl,
+      child: Scaffold(
+        appBar: AppBar(
+          title: const Text(
+            'متابع الأسهم السعودية',
+            style: TextStyle(fontWeight: FontWeight.bold),
+          ),
+          centerTitle: true,
         ),
-        actions: const [
-          Icon(Icons.notifications_none),
-          SizedBox(width: 16),
-        ],
+        body: _getPage(),
+        bottomNavigationBar: NavigationBar(
+          selectedIndex: page,
+          onDestinationSelected: (value) {
+            setState(() {
+              page = value;
+            });
+          },
+          destinations: const [
+            NavigationDestination(
+              icon: Icon(Icons.home_outlined),
+              selectedIcon: Icon(Icons.home),
+              label: 'السوق',
+            ),
+            NavigationDestination(
+              icon: Icon(Icons.star_outline),
+              selectedIcon: Icon(Icons.star),
+              label: 'المتابعة',
+            ),
+            NavigationDestination(
+              icon: Icon(Icons.pie_chart_outline),
+              selectedIcon: Icon(Icons.pie_chart),
+              label: 'المحفظة',
+            ),
+            NavigationDestination(
+              icon: Icon(Icons.notifications_outlined),
+              selectedIcon: Icon(Icons.notifications),
+              label: 'التنبيهات',
+            ),
+          ],
+        ),
       ),
-      body: page == 0 ? dashboard() : placeholderPage(),
-      bottomNavigationBar: NavigationBar(
-        selectedIndex: page,
-        onDestinationSelected: (value) {
-          setState(() => page = value);
-        },
-        destinations: const [
-          NavigationDestination(
-            icon: Icon(Icons.home_outlined),
-            selectedIcon: Icon(Icons.home),
-            label: 'السوق',
-          ),
-          NavigationDestination(
-            icon: Icon(Icons.star_border),
-            selectedIcon: Icon(Icons.star),
-            label: 'المتابعة',
-          ),
-          NavigationDestination(
-            icon: Icon(Icons.account_balance_wallet_outlined),
-            label: 'المحفظة',
-          ),
-          NavigationDestination(
-            icon: Icon(Icons.notifications_outlined),
-            label: 'التنبيهات',
-          ),
-        ],
-      ),
+    );
+  }
+
+  Widget _getPage() {
+    if (page == 0) {
+      return dashboard();
+    }
+
+    if (page == 1) {
+      return placeholderPage(
+        'قائمة المتابعة',
+        Icons.star,
+        'تابع الأسهم المهمة بالنسبة لك',
+      );
+    }
+
+    if (page == 2) {
+      return placeholderPage(
+        'المحفظة',
+        Icons.pie_chart,
+        'متابعة الأسهم والكميات ومتوسط سعر الشراء',
+      );
+    }
+
+    return placeholderPage(
+      'التنبيهات',
+      Icons.notifications,
+      'تنبيهات الأسعار والمؤشرات الفنية',
     );
   }
 
@@ -89,43 +138,32 @@ class _StockHomePageState extends State<StockHomePage> {
       padding: const EdgeInsets.all(16),
       children: [
         const Text(
-          'السوق السعودي',
-          style: TextStyle(fontSize: 26, fontWeight: FontWeight.bold),
+          'نظرة عامة على السوق',
+          style: TextStyle(
+            fontSize: 24,
+            fontWeight: FontWeight.bold,
+          ),
         ),
-        const SizedBox(height: 6),
-        const Text(
-          'نسخة تجريبية • البيانات الحالية Demo',
-          style: TextStyle(color: Colors.grey),
-        ),
-        const SizedBox(height: 18),
+        const SizedBox(height: 16),
         Card(
           child: Padding(
             padding: const EdgeInsets.all(18),
             child: Column(
               crossAxisAlignment: CrossAxisAlignment.start,
               children: const [
-                Text('مؤشر تاسي TASI'),
+                Text(
+                  'مؤشر تاسي',
+                  style: TextStyle(fontSize: 16),
+                ),
                 SizedBox(height: 8),
                 Text(
-                  '11,420.35',
+                  '11,245.30',
                   style: TextStyle(
                     fontSize: 30,
                     fontWeight: FontWeight.bold,
                   ),
                 ),
-                SizedBox(height: 4),
+                SizedBox(height: 6),
                 Text(
-                  '+0.73%',
+                  '+0.76%',
                   style: TextStyle(
-                    color: Colors.greenAccent,
-                    fontSize: 18,
-                  ),
-                ),
-              ],
-            ),
-          ),
-        ),
-        const SizedBox(height: 18),
-        const Text(
-          'الأسهم',
-          style: TextStyle(fontSize: 20, fontWeight
