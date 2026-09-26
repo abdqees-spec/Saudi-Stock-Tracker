@@ -1,4 +1,4 @@
-import 'dart:convert';
+                                                                                                                                                                                                                                                                                                                                                                       import 'dart:convert';
 
 import 'package:flutter/material.dart';
 import 'package:http/http.dart' as http;
@@ -25,7 +25,8 @@ class SaudiStockApp extends StatelessWidget {
         brightness: Brightness.dark,
         useMaterial3: true,
         colorSchemeSeed: Colors.green,
-        scaffoldBackgroundColor: const Color(0xFF081109),
+        scaffoldBackgroundColor:
+            const Color(0xFF081109),
       ),
       home: const HomePage(),
     );
@@ -35,83 +36,245 @@ class SaudiStockApp extends StatelessWidget {
 class Stock {
   final String name;
   final String symbol;
+  final String? sector;
+
+  const Stock({
+    required this.name,
+    required this.symbol,
+    this.sector,
+  });
+}
+
+class Quote {
   final double price;
-  final double change;
+  final double changePercent;
+  final double? change;
+  final double? open;
+  final double? high;
+  final double? low;
+  final double? previousClose;
+  final double? volume;
+  final bool delayed;
 
-  const Stock(
-    this.name,
-    this.symbol,
-    this.price,
+  const Quote({
+    required this.price,
+    required this.changePercent,
     this.change,
-  );
+    this.open,
+    this.high,
+    this.low,
+    this.previousClose,
+    this.volume,
+    this.delayed = false,
+  });
 }
 
-class HomePage extends StatefulWidget {
-  const HomePage({super.key});
-
-  @override
-  State<HomePage> createState() => _HomePageState();
-}
-
-class _HomePageState extends State<HomePage> {
-  int page = 0;
-
-  bool isLoading = false;
-  String? apiError;
-  DateTime? lastUpdate;
-
-  final Set<String> watch = {
-    '2222',
-    '1120',
-  };
-
-  List<Stock> stocks = [
-    const Stock('أرامكو السعودية', '2222', 24.80, 1.22),
-    const Stock('مصرف الراجحي', '1120', 96.40, 0.84),
-    const Stock('سابك', '2010', 58.75, -0.51),
-    const Stock('الأهلي السعودي', '1180', 39.20, 1.03),
-    const Stock('الاتصالات السعودية', '7010', 44.10, 0.46),
-    const Stock('معادن', '1211', 54.60, -0.73),
-  ];
-
-  @override
-  void initState() {
-    super.initState();
-
-    WidgetsBinding.instance.addPostFrameCallback((_) {
-      loadMarketData();
-    });
-  }
-
-  Future<Stock> fetchStock(Stock stock) async {
-    final response = await http.get(
-      Uri.parse(
-        '$sahmkBaseUrl/quote/${stock.symbol}/',
-      ),
-      headers: {
+class SahmkApi {
+  static Map<String, String> get headers => {
         'X-API-Key': sahmkApiKey,
         'Accept': 'application/json',
-      },
+      };
+
+  static Future<List<Stock>>
+      fetchAllTasiCompanies() async {
+    if (sahmkApiKey.isEmpty) {
+      throw Exception(
+        'SAHMK_API_KEY غير موجود في نسخة التطبيق',
+      );
+    }
+
+    final List<Stock> allStocks = [];
+
+    int offset = 0;
+    const int limit = 100;
+
+    while (true) {
+      final uri = Uri.parse(
+        '$sahmkBaseUrl/companies/'
+        '?market=TASI'
+        '&limit=$limit'
+        '&offset=$offset',
+      );
+
+      final response = await http
+          .get(
+            uri,
+            headers: headers,
+          )
+          .timeout(
+            const Duration(seconds: 20),
+          );
+
+      if (response.statusCode != 200) {
+        throw Exception(
+          'SAHMK ${response.statusCode}: '
+          '${response.body}',
+        );
+      }
+
+      final dynamic decoded =
+          jsonDecode(response.body);
+
+      List<dynamic> rows = [];
+
+      if (decoded is List) {
+        rows = decoded;
+      } else if (decoded is Map) {
+        if (decoded['results'] is List) {
+          rows =
+              List<dynamic>.from(decoded['results']);
+        } else if (decoded['data'] is List) {
+          rows =
+              List<dynamic>.from(decoded['data']);
+        } else if (decoded['companies'] is List) {
+          rows = List<dynamic>.from(
+            decoded['companies'],
+          );
+        }
+      }
+
+      if (rows.isEmpty) {
+        break;
+      }
+
+      for (final item in rows) {
+        if (item is! Map) continue;
+
+        final map =
+            Map<String, dynamic>.from(item);
+
+        final symbol = _stringValue(
+          map,
+          [
+            'symbol',
+            'ticker',
+            'code',
+          ],
+        );
+
+        if (symbol.isEmpty) continue;
+
+        final arabicName = _stringValue(
+          map,
+          [
+            'name_ar',
+            'arabic_name',
+            'nameAr',
+          ],
+        );
+
+        final englishName = _stringValue(
+          map,
+          [
+            'name',
+            'name_en',
+            'english_name',
+          ],
+        );
+
+        final sector = _stringValue(
+          map,
+          [
+            'sector_name_ar',
+            'sector',
+            'sector_name',
+          ],
+        );
+
+        allStocks.add(
+          Stock(
+            name: arabicName.isNotEmpty
+                ? arabicName
+                : englishName.isNotEmpty
+                    ? englishName
+                    : symbol,
+            symbol: symbol,
+            sector:
+                sector.isEmpty ? null : sector,
+          ),
+        );
+      }
+
+      if (rows.length < limit) {
+        break;
+      }
+
+      offset += limit;
+
+      if (offset > 1000) {
+        break;
+      }
+    }
+
+    final unique = <String, Stock>{};
+
+    for (final stock in allStocks) {
+      unique[stock.symbol] = stock;
+    }
+
+    final result = unique.values.toList();
+
+    result.sort(
+      (a, b) => a.symbol.compareTo(b.symbol),
     );
+
+    if (result.isEmpty) {
+      throw Exception(
+        'لم ترجع SAHMK أي شركات من TASI',
+      );
+    }
+
+    return result;
+  }
+
+  static Future<Quote> fetchQuote(
+    String symbol,
+  ) async {
+    if (sahmkApiKey.isEmpty) {
+      throw Exception(
+        'SAHMK_API_KEY غير موجود في نسخة التطبيق',
+      );
+    }
+
+    final uri = Uri.parse(
+      '$sahmkBaseUrl/quote/$symbol/',
+    );
+
+    final response = await http
+        .get(
+          uri,
+          headers: headers,
+        )
+        .timeout(
+          const Duration(seconds: 20),
+        );
 
     if (response.statusCode != 200) {
       throw Exception(
-        'SAHMK error ${response.statusCode}',
+        'SAHMK ${response.statusCode}: '
+        '${response.body}',
       );
     }
 
     final dynamic decoded =
         jsonDecode(response.body);
 
-    if (decoded is! Map<String, dynamic>) {
+    if (decoded is! Map) {
       throw Exception(
-        'Unexpected SAHMK response',
+        'استجابة غير متوقعة من SAHMK',
       );
     }
 
-    final data = decoded;
+    Map<String, dynamic> data =
+        Map<String, dynamic>.from(decoded);
 
-    final price = _readDouble(
+    if (data['data'] is Map) {
+      data = Map<String, dynamic>.from(
+        data['data'],
+      );
+    }
+
+    final price = _doubleValue(
       data,
       [
         'price',
@@ -121,34 +284,88 @@ class _HomePageState extends State<HomePage> {
       ],
     );
 
-    final change = _readDouble(
-      data,
-      [
-        'change_percent',
-        'changePercent',
-        'percent_change',
-        'change_percentage',
-      ],
-    );
+    if (price == null) {
+      throw Exception(
+        'لم يتم العثور على السعر في استجابة SAHMK',
+      );
+    }
 
-    return Stock(
-      data['name']?.toString() ?? stock.name,
-      stock.symbol,
-      price ?? stock.price,
-      change ?? stock.change,
+    final changePercent = _doubleValue(
+          data,
+          [
+            'change_percent',
+            'change_percentage',
+            'percent_change',
+            'changePercent',
+          ],
+        ) ??
+        0;
+
+    return Quote(
+      price: price,
+      changePercent: changePercent,
+      change: _doubleValue(
+        data,
+        ['change', 'price_change'],
+      ),
+      open: _doubleValue(
+        data,
+        ['open', 'open_price'],
+      ),
+      high: _doubleValue(
+        data,
+        ['high', 'high_price'],
+      ),
+      low: _doubleValue(
+        data,
+        ['low', 'low_price'],
+      ),
+      previousClose: _doubleValue(
+        data,
+        [
+          'previous_close',
+          'prev_close',
+          'previousClose',
+        ],
+      ),
+      volume: _doubleValue(
+        data,
+        ['volume', 'traded_volume'],
+      ),
+      delayed: _boolValue(
+        data,
+        [
+          'is_delayed',
+          'delayed',
+        ],
+      ),
     );
   }
 
-  double? _readDouble(
+  static String _stringValue(
     Map<String, dynamic> data,
     List<String> keys,
   ) {
     for (final key in keys) {
       final value = data[key];
 
-      if (value == null) {
-        continue;
+      if (value != null &&
+          value.toString().trim().isNotEmpty) {
+        return value.toString().trim();
       }
+    }
+
+    return '';
+  }
+
+  static double? _doubleValue(
+    Map<String, dynamic> data,
+    List<String> keys,
+  ) {
+    for (final key in keys) {
+      final value = data[key];
+
+      if (value == null) continue;
 
       if (value is num) {
         return value.toDouble();
@@ -157,8 +374,8 @@ class _HomePageState extends State<HomePage> {
       final parsed = double.tryParse(
         value
             .toString()
-            .replaceAll('%', '')
             .replaceAll(',', '')
+            .replaceAll('%', '')
             .trim(),
       );
 
@@ -170,39 +387,79 @@ class _HomePageState extends State<HomePage> {
     return null;
   }
 
-  Future<void> loadMarketData() async {
-    if (sahmkApiKey.isEmpty) {
-      setState(() {
-        apiError =
-            'SAHMK_API_KEY غير موجود في نسخة التطبيق.';
-      });
-      return;
+  static bool _boolValue(
+    Map<String, dynamic> data,
+    List<String> keys,
+  ) {
+    for (final key in keys) {
+      final value = data[key];
+
+      if (value is bool) {
+        return value;
+      }
+
+      if (value != null) {
+        final text =
+            value.toString().toLowerCase();
+
+        if (text == 'true' ||
+            text == '1') {
+          return true;
+        }
+      }
     }
 
+    return false;
+  }
+}
+
+class HomePage extends StatefulWidget {
+  const HomePage({super.key});
+
+  @override
+  State<HomePage> createState() =>
+      _HomePageState();
+}
+
+class _HomePageState
+    extends State<HomePage> {
+  int page = 0;
+
+  bool loading = true;
+  String? error;
+
+  List<Stock> stocks = [];
+
+  final Set<String> watch = {};
+
+  @override
+  void initState() {
+    super.initState();
+    loadMarket();
+  }
+
+  Future<void> loadMarket() async {
     setState(() {
-      isLoading = true;
-      apiError = null;
+      loading = true;
+      error = null;
     });
 
     try {
-      final updatedStocks =
-          await Future.wait(
-        stocks.map(fetchStock),
-      );
+      final result =
+          await SahmkApi.fetchAllTasiCompanies();
 
       if (!mounted) return;
 
       setState(() {
-        stocks = updatedStocks;
-        isLoading = false;
-        lastUpdate = DateTime.now();
+        stocks = result;
+        loading = false;
       });
     } catch (e) {
       if (!mounted) return;
 
       setState(() {
-        isLoading = false;
-        apiError = e.toString();
+        loading = false;
+        error = e.toString();
       });
     }
   }
@@ -210,7 +467,7 @@ class _HomePageState extends State<HomePage> {
   @override
   Widget build(BuildContext context) {
     const titles = [
-      'السوق',
+      'السوق السعودي',
       'المتابعة',
       'المحفظة',
       'التنبيهات',
@@ -230,32 +487,37 @@ class _HomePageState extends State<HomePage> {
           actions: [
             if (page == 0)
               IconButton(
-                tooltip: 'تحديث الأسعار',
+                tooltip: 'تحديث',
                 onPressed:
-                    isLoading ? null : loadMarketData,
-                icon: const Icon(Icons.refresh),
+                    loading ? null : loadMarket,
+                icon:
+                    const Icon(Icons.refresh),
               ),
-            IconButton(
-              icon: const Icon(Icons.search),
-              onPressed: () {
-                showSearch(
-                  context: context,
-                  delegate: StockSearch(
-                    stocks,
-                    openStock,
-                  ),
-                );
-              },
-            ),
+            if (stocks.isNotEmpty)
+              IconButton(
+                tooltip: 'بحث',
+                onPressed: () {
+                  showSearch(
+                    context: context,
+                    delegate: StockSearch(
+                      stocks,
+                      openStock,
+                    ),
+                  );
+                },
+                icon:
+                    const Icon(Icons.search),
+              ),
           ],
         ),
         body: [
-          market(),
+          marketPage(),
           watchPage(),
-          portfolio(),
-          alerts(),
+          portfolioPage(),
+          alertsPage(),
         ][page],
-        bottomNavigationBar: NavigationBar(
+        bottomNavigationBar:
+            NavigationBar(
           selectedIndex: page,
           onDestinationSelected: (value) {
             setState(() {
@@ -264,18 +526,25 @@ class _HomePageState extends State<HomePage> {
           },
           destinations: const [
             NavigationDestination(
-              icon: Icon(Icons.home_outlined),
-              selectedIcon: Icon(Icons.home),
+              icon:
+                  Icon(Icons.home_outlined),
+              selectedIcon:
+                  Icon(Icons.home),
               label: 'السوق',
             ),
             NavigationDestination(
-              icon: Icon(Icons.star_outline),
-              selectedIcon: Icon(Icons.star),
+              icon:
+                  Icon(Icons.star_outline),
+              selectedIcon:
+                  Icon(Icons.star),
               label: 'المتابعة',
             ),
             NavigationDestination(
-              icon: Icon(Icons.pie_chart_outline),
-              selectedIcon: Icon(Icons.pie_chart),
+              icon: Icon(
+                Icons.pie_chart_outline,
+              ),
+              selectedIcon:
+                  Icon(Icons.pie_chart),
               label: 'المحفظة',
             ),
             NavigationDestination(
@@ -293,176 +562,154 @@ class _HomePageState extends State<HomePage> {
     );
   }
 
-  Widget market() {
-    return RefreshIndicator(
-      onRefresh: loadMarketData,
-      child: ListView(
-        physics:
-            const AlwaysScrollableScrollPhysics(),
-        padding: const EdgeInsets.all(16),
+  Widget marketPage() {
+    if (loading) {
+      return const Center(
+        child: Column(
+          mainAxisSize:
+              MainAxisSize.min,
+          children: [
+            CircularProgressIndicator(),
+            SizedBox(height: 16),
+            Text(
+              'جاري تحميل شركات TASI من SAHMK...',
+            ),
+          ],
+        ),
+      );
+    }
+
+    if (error != null) {
+      return ListView(
+        padding:
+            const EdgeInsets.all(16),
         children: [
+          const SizedBox(height: 60),
+          const Icon(
+            Icons.cloud_off,
+            size: 60,
+            color: Colors.orangeAccent,
+          ),
+          const SizedBox(height: 16),
           const Text(
-            'نظرة عامة على السوق',
+            'تعذر الاتصال بـ SAHMK',
+            textAlign: TextAlign.center,
             style: TextStyle(
-              fontSize: 24,
+              fontSize: 22,
               fontWeight: FontWeight.bold,
             ),
           ),
           const SizedBox(height: 12),
-
-          if (isLoading)
-            const Card(
-              child: Padding(
-                padding: EdgeInsets.all(18),
-                child: Row(
-                  children: [
-                    SizedBox(
-                      width: 22,
-                      height: 22,
-                      child:
-                          CircularProgressIndicator(
-                        strokeWidth: 2,
-                      ),
-                    ),
-                    SizedBox(width: 14),
-                    Text(
-                      'جاري تحديث بيانات السوق...',
-                    ),
-                  ],
-                ),
-              ),
-            ),
-
-          if (apiError != null)
-            Card(
-              child: Padding(
-                padding:
-                    const EdgeInsets.all(14),
-                child: Column(
-                  children: [
-                    const Row(
-                      children: [
-                        Icon(
-                          Icons.error_outline,
-                          color: Colors.orangeAccent,
-                        ),
-                        SizedBox(width: 8),
-                        Expanded(
-                          child: Text(
-                            'تعذر تحديث بيانات SAHMK',
-                            style: TextStyle(
-                              fontWeight:
-                                  FontWeight.bold,
-                            ),
-                          ),
-                        ),
-                      ],
-                    ),
-                    const SizedBox(height: 8),
-                    Text(
-                      apiError!,
-                      style: const TextStyle(
-                        color: Colors.grey,
-                        fontSize: 12,
-                      ),
-                    ),
-                    const SizedBox(height: 8),
-                    FilledButton.icon(
-                      onPressed: loadMarketData,
-                      icon:
-                          const Icon(Icons.refresh),
-                      label:
-                          const Text('إعادة المحاولة'),
-                    ),
-                  ],
-                ),
-              ),
-            ),
-
-          Card(
-            child: Padding(
-              padding: const EdgeInsets.all(18),
-              child: Column(
-                crossAxisAlignment:
-                    CrossAxisAlignment.start,
-                children: [
-                  const Text(
-                    'بيانات الأسهم السعودية',
-                    style: TextStyle(
-                      fontSize: 16,
-                    ),
-                  ),
-                  const SizedBox(height: 6),
-                  Text(
-                    apiError == null &&
-                            lastUpdate != null
-                        ? 'متصل بـ SAHMK'
-                        : 'بانتظار بيانات SAHMK',
-                    style: TextStyle(
-                      fontSize: 22,
-                      fontWeight: FontWeight.bold,
-                      color: apiError == null &&
-                              lastUpdate != null
-                          ? Colors.greenAccent
-                          : Colors.orangeAccent,
-                    ),
-                  ),
-                  if (lastUpdate != null)
-                    Text(
-                      'آخر تحديث: '
-                      '${lastUpdate!.hour.toString().padLeft(2, '0')}:'
-                      '${lastUpdate!.minute.toString().padLeft(2, '0')}',
-                      style: const TextStyle(
-                        color: Colors.grey,
-                      ),
-                    ),
-                ],
-              ),
+          SelectableText(
+            error!,
+            textAlign: TextAlign.center,
+            style: const TextStyle(
+              color: Colors.grey,
+              fontSize: 13,
             ),
           ),
-
-          const SizedBox(height: 18),
-          const Text(
-            'الأسهم',
-            style: TextStyle(
-              fontSize: 21,
-              fontWeight: FontWeight.bold,
-            ),
-          ),
-          const SizedBox(height: 8),
-
-          ...stocks.map(stockTile),
-
-          Padding(
-            padding: const EdgeInsets.all(14),
-            child: Text(
-              lastUpdate != null
-                  ? 'V3 • بيانات الأسهم من SAHMK API.'
-                  : 'V3 • سيتم استبدال القيم الاحتياطية عند نجاح الاتصال بـ SAHMK.',
-              textAlign: TextAlign.center,
-              style: const TextStyle(
-                color: Colors.grey,
-                fontSize: 12,
-              ),
-            ),
+          const SizedBox(height: 20),
+          FilledButton.icon(
+            onPressed: loadMarket,
+            icon:
+                const Icon(Icons.refresh),
+            label:
+                const Text('إعادة المحاولة'),
           ),
         ],
+      );
+    }
+
+    return RefreshIndicator(
+      onRefresh: loadMarket,
+      child: ListView.builder(
+        physics:
+            const AlwaysScrollableScrollPhysics(),
+        padding:
+            const EdgeInsets.all(16),
+        itemCount: stocks.length + 2,
+        itemBuilder: (context, index) {
+          if (index == 0) {
+            return Card(
+              child: Padding(
+                padding:
+                    const EdgeInsets.all(18),
+                child: Column(
+                  crossAxisAlignment:
+                      CrossAxisAlignment.start,
+                  children: [
+                    const Text(
+                      'TASI',
+                      style: TextStyle(
+                        fontSize: 25,
+                        fontWeight:
+                            FontWeight.bold,
+                      ),
+                    ),
+                    const SizedBox(height: 5),
+                    Text(
+                      '${stocks.length} شركة/سهم',
+                      style: const TextStyle(
+                        color:
+                            Colors.greenAccent,
+                        fontSize: 17,
+                      ),
+                    ),
+                    const SizedBox(height: 5),
+                    const Text(
+                      'قائمة السوق من SAHMK',
+                      style: TextStyle(
+                        color: Colors.grey,
+                      ),
+                    ),
+                  ],
+                ),
+              ),
+            );
+          }
+
+          if (index == 1) {
+            return const Padding(
+              padding: EdgeInsets.fromLTRB(
+                4,
+                18,
+                4,
+                10,
+              ),
+              child: Text(
+                'جميع الأسهم',
+                style: TextStyle(
+                  fontSize: 21,
+                  fontWeight:
+                      FontWeight.bold,
+                ),
+              ),
+            );
+          }
+
+          return stockTile(
+            stocks[index - 2],
+          );
+        },
       ),
     );
   }
 
   Widget stockTile(Stock stock) {
-    final bool positive = stock.change >= 0;
+    final selected =
+        watch.contains(stock.symbol);
 
     return Card(
-      margin: const EdgeInsets.only(bottom: 9),
+      margin:
+          const EdgeInsets.only(bottom: 8),
       child: ListTile(
-        onTap: () {
-          openStock(stock);
-        },
+        onTap: () => openStock(stock),
         leading: CircleAvatar(
           child: Text(
-            stock.symbol.substring(0, 2),
+            stock.symbol.length >= 2
+                ? stock.symbol
+                    .substring(0, 2)
+                : stock.symbol,
           ),
         ),
         title: Text(
@@ -471,55 +718,95 @@ class _HomePageState extends State<HomePage> {
             fontWeight: FontWeight.bold,
           ),
         ),
-        subtitle: Text(stock.symbol),
-        trailing: Row(
-          mainAxisSize: MainAxisSize.min,
+        subtitle: Text(
+          stock.sector == null
+              ? stock.symbol
+              : '${stock.symbol} • ${stock.sector}',
+        ),
+        trailing: IconButton(
+          onPressed: () {
+            setState(() {
+              if (selected) {
+                watch.remove(stock.symbol);
+              } else {
+                watch.add(stock.symbol);
+              }
+            });
+          },
+          icon: Icon(
+            selected
+                ? Icons.star
+                : Icons.star_border,
+            color:
+                selected ? Colors.amber : null,
+          ),
+        ),
+      ),
+    );
+  }
+
+  Widget watchPage() {
+    final selected = stocks
+        .where(
+          (stock) =>
+              watch.contains(stock.symbol),
+        )
+        .toList();
+
+    if (selected.isEmpty) {
+      return const Center(
+        child: Text(
+          'أضف الأسهم إلى المتابعة ⭐',
+          style: TextStyle(fontSize: 18),
+        ),
+      );
+    }
+
+    return ListView(
+      padding:
+          const EdgeInsets.all(16),
+      children: [
+        Text(
+          '${selected.length} سهم في المتابعة',
+          style: const TextStyle(
+            fontSize: 20,
+            fontWeight: FontWeight.bold,
+          ),
+        ),
+        const SizedBox(height: 12),
+        ...selected.map(stockTile),
+      ],
+    );
+  }
+
+  Widget portfolioPage() {
+    return const Center(
+      child: Padding(
+        padding: EdgeInsets.all(25),
+        child: Column(
+          mainAxisSize:
+              MainAxisSize.min,
           children: [
-            Column(
-              mainAxisAlignment:
-                  MainAxisAlignment.center,
-              crossAxisAlignment:
-                  CrossAxisAlignment.end,
-              children: [
-                Text(
-                  '${stock.price.toStringAsFixed(2)} ر.س',
-                  style: const TextStyle(
-                    fontWeight: FontWeight.bold,
-                  ),
-                ),
-                Text(
-                  '${positive ? '+' : ''}'
-                  '${stock.change.toStringAsFixed(2)}%',
-                  style: TextStyle(
-                    color: positive
-                        ? Colors.greenAccent
-                        : Colors.redAccent,
-                    fontWeight: FontWeight.bold,
-                  ),
-                ),
-              ],
+            Icon(
+              Icons.pie_chart_outline,
+              size: 70,
+              color: Colors.greenAccent,
             ),
-            IconButton(
-              onPressed: () {
-                setState(() {
-                  if (watch.contains(
-                    stock.symbol,
-                  )) {
-                    watch.remove(stock.symbol);
-                  } else {
-                    watch.add(stock.symbol);
-                  }
-                });
-              },
-              icon: Icon(
-                watch.contains(stock.symbol)
-                    ? Icons.star
-                    : Icons.star_border,
-                color:
-                    watch.contains(stock.symbol)
-                        ? Colors.amber
-                        : null,
+            SizedBox(height: 15),
+            Text(
+              'المحفظة',
+              style: TextStyle(
+                fontSize: 25,
+                fontWeight:
+                    FontWeight.bold,
               ),
+            ),
+            SizedBox(height: 8),
+            Text(
+              'سنربط المحفظة بالأسهم الحقيقية في المرحلة التالية.',
+              textAlign: TextAlign.center,
+              style:
+                  TextStyle(color: Colors.grey),
             ),
           ],
         ),
@@ -527,148 +814,38 @@ class _HomePageState extends State<HomePage> {
     );
   }
 
-  Widget watchPage() {
-    final items = stocks
-        .where(
-          (stock) =>
-              watch.contains(stock.symbol),
-        )
-        .toList();
-
-    if (items.isEmpty) {
-      return const Center(
-        child: Text(
-          'أضف الأسهم للمفضلة من صفحة السوق',
-        ),
-      );
-    }
-
-    return ListView(
-      padding: const EdgeInsets.all(16),
-      children: [
-        const Text(
-          'قائمة المتابعة',
-          style: TextStyle(
-            fontSize: 24,
-            fontWeight: FontWeight.bold,
-          ),
-        ),
-        const SizedBox(height: 10),
-        ...items.map(stockTile),
-      ],
-    );
-  }
-
-  Widget portfolio() {
-    return ListView(
-      padding: const EdgeInsets.all(16),
-      children: const [
-        Text(
-          'المحفظة التجريبية',
-          style: TextStyle(
-            fontSize: 24,
-            fontWeight: FontWeight.bold,
-          ),
-        ),
-        SizedBox(height: 12),
-        Card(
-          child: Padding(
-            padding: EdgeInsets.all(20),
-            child: Column(
-              children: [
-                Text('القيمة الحالية'),
-                SizedBox(height: 6),
-                Text(
-                  '25,730 ر.س',
-                  style: TextStyle(
-                    fontSize: 30,
-                    fontWeight: FontWeight.bold,
-                  ),
-                ),
-                Text(
-                  '+730 ر.س (+2.92%)',
-                  style: TextStyle(
-                    color: Colors.greenAccent,
-                    fontWeight: FontWeight.bold,
-                  ),
-                ),
-              ],
+  Widget alertsPage() {
+    return const Center(
+      child: Padding(
+        padding: EdgeInsets.all(25),
+        child: Column(
+          mainAxisSize:
+              MainAxisSize.min,
+          children: [
+            Icon(
+              Icons.notifications_outlined,
+              size: 70,
+              color: Colors.greenAccent,
             ),
-          ),
-        ),
-        Card(
-          child: ListTile(
-            title: Text('أرامكو السعودية'),
-            subtitle: Text('300 سهم'),
-            trailing: Text('7,440 ر.س'),
-          ),
-        ),
-        Card(
-          child: ListTile(
-            title: Text('مصرف الراجحي'),
-            subtitle: Text('100 سهم'),
-            trailing: Text('9,640 ر.س'),
-          ),
-        ),
-        Card(
-          child: ListTile(
-            title: Text('سابك'),
-            subtitle: Text('100 سهم'),
-            trailing: Text('5,875 ر.س'),
-          ),
-        ),
-      ],
-    );
-  }
-
-  Widget alerts() {
-    return ListView(
-      padding: const EdgeInsets.all(16),
-      children: const [
-        Text(
-          'التنبيهات',
-          style: TextStyle(
-            fontSize: 24,
-            fontWeight: FontWeight.bold,
-          ),
-        ),
-        SizedBox(height: 12),
-        Card(
-          child: ListTile(
-            leading: Icon(Icons.price_change),
-            title: Text('تنبيه السعر'),
-            subtitle:
-                Text('أرامكو عند 25.00 ر.س'),
-          ),
-        ),
-        Card(
-          child: ListTile(
-            leading: Icon(Icons.show_chart),
-            title: Text('اختراق مقاومة'),
-            subtitle: Text(
-              'الراجحي أعلى من 98.00 ر.س',
+            SizedBox(height: 15),
+            Text(
+              'التنبيهات',
+              style: TextStyle(
+                fontSize: 25,
+                fontWeight:
+                    FontWeight.bold,
+              ),
             ),
-          ),
-        ),
-        Card(
-          child: ListTile(
-            leading: Icon(Icons.speed),
-            title: Text('RSI'),
-            subtitle: Text(
-              'التشبع الشرائي والبيعي',
+            SizedBox(height: 8),
+            Text(
+              'تنبيهات السعر والمؤشرات ستضاف بعد تثبيت اتصال بيانات السوق.',
+              textAlign: TextAlign.center,
+              style:
+                  TextStyle(color: Colors.grey),
             ),
-          ),
+          ],
         ),
-        Card(
-          child: ListTile(
-            leading: Icon(Icons.bar_chart),
-            title: Text('حجم التداول'),
-            subtitle: Text(
-              'ارتفاع غير معتاد في حجم التداول',
-            ),
-          ),
-        ),
-      ],
+      ),
     );
   }
 
@@ -676,17 +853,15 @@ class _HomePageState extends State<HomePage> {
     Navigator.push(
       context,
       MaterialPageRoute(
-        builder: (_) {
-          return StockDetails(
-            stock: stock,
-          );
-        },
+        builder: (_) =>
+            StockDetails(stock: stock),
       ),
     );
   }
 }
 
-class StockDetails extends StatefulWidget {
+class StockDetails
+    extends StatefulWidget {
   final Stock stock;
 
   const StockDetails({
@@ -695,212 +870,371 @@ class StockDetails extends StatefulWidget {
   });
 
   @override
-  State<StockDetails> createState() {
-    return _StockDetailsState();
-  }
+  State<StockDetails> createState() =>
+      _StockDetailsState();
 }
 
 class _StockDetailsState
     extends State<StockDetails> {
+  Quote? quote;
+  bool loading = true;
+  String? error;
   int period = 0;
 
   @override
-  Widget build(BuildContext context) {
-    final stock = widget.stock;
-    final bool positive = stock.change >= 0;
+  void initState() {
+    super.initState();
+    loadQuote();
+  }
 
+  Future<void> loadQuote() async {
+    setState(() {
+      loading = true;
+      error = null;
+    });
+
+    try {
+      final result =
+          await SahmkApi.fetchQuote(
+        widget.stock.symbol,
+      );
+
+      if (!mounted) return;
+
+      setState(() {
+        quote = result;
+        loading = false;
+      });
+    } catch (e) {
+      if (!mounted) return;
+
+      setState(() {
+        loading = false;
+        error = e.toString();
+      });
+    }
+  }
+
+  @override
+  Widget build(BuildContext context) {
     return Directionality(
       textDirection: TextDirection.rtl,
       child: Scaffold(
         appBar: AppBar(
-          title: Text(stock.name),
+          title: Text(widget.stock.name),
           centerTitle: true,
+          actions: [
+            IconButton(
+              onPressed:
+                  loading ? null : loadQuote,
+              icon:
+                  const Icon(Icons.refresh),
+            ),
+          ],
         ),
-        body: ListView(
-          padding: const EdgeInsets.all(16),
-          children: [
-            Text(
-              stock.symbol,
-              style: const TextStyle(
-                color: Colors.grey,
+        body: RefreshIndicator(
+          onRefresh: loadQuote,
+          child: ListView(
+            physics:
+                const AlwaysScrollableScrollPhysics(),
+            padding:
+                const EdgeInsets.all(16),
+            children: [
+              Text(
+                widget.stock.symbol,
+                style: const TextStyle(
+                  color: Colors.grey,
+                  fontSize: 16,
+                ),
               ),
+              if (widget.stock.sector !=
+                  null)
+                Text(
+                  widget.stock.sector!,
+                  style: const TextStyle(
+                    color: Colors.grey,
+                  ),
+                ),
+              const SizedBox(height: 15),
+
+              if (loading)
+                const Card(
+                  child: Padding(
+                    padding:
+                        EdgeInsets.all(25),
+                    child: Column(
+                      children: [
+                        CircularProgressIndicator(),
+                        SizedBox(height: 15),
+                        Text(
+                          'جاري جلب السعر من SAHMK...',
+                        ),
+                      ],
+                    ),
+                  ),
+                ),
+
+              if (error != null)
+                Card(
+                  child: Padding(
+                    padding:
+                        const EdgeInsets.all(18),
+                    child: Column(
+                      children: [
+                        const Icon(
+                          Icons.error_outline,
+                          color:
+                              Colors.orangeAccent,
+                          size: 45,
+                        ),
+                        const SizedBox(
+                            height: 10),
+                        const Text(
+                          'تعذر جلب سعر السهم',
+                          style: TextStyle(
+                            fontWeight:
+                                FontWeight.bold,
+                            fontSize: 18,
+                          ),
+                        ),
+                        const SizedBox(
+                            height: 8),
+                        SelectableText(
+                          error!,
+                          textAlign:
+                              TextAlign.center,
+                          style: const TextStyle(
+                            color: Colors.grey,
+                            fontSize: 12,
+                          ),
+                        ),
+                        const SizedBox(
+                            height: 12),
+                        FilledButton(
+                          onPressed: loadQuote,
+                          child: const Text(
+                            'إعادة المحاولة',
+                          ),
+                        ),
+                      ],
+                    ),
+                  ),
+                ),
+
+              if (quote != null)
+                quoteCard(),
+
+              const SizedBox(height: 16),
+
+              SegmentedButton<int>(
+                segments: const [
+                  ButtonSegment(
+                    value: 0,
+                    label: Text('يومي'),
+                  ),
+                  ButtonSegment(
+                    value: 1,
+                    label: Text('أسبوعي'),
+                  ),
+                  ButtonSegment(
+                    value: 2,
+                    label: Text('شهري'),
+                  ),
+                  ButtonSegment(
+                    value: 3,
+                    label: Text('سنوي'),
+                  ),
+                ],
+                selected: {period},
+                showSelectedIcon: false,
+                onSelectionChanged: (value) {
+                  setState(() {
+                    period = value.first;
+                  });
+                },
+              ),
+
+              const SizedBox(height: 16),
+
+              const Card(
+                child: SizedBox(
+                  height: 170,
+                  child: Center(
+                    child: Column(
+                      mainAxisSize:
+                          MainAxisSize.min,
+                      children: [
+                        Icon(
+                          Icons.show_chart,
+                          size: 80,
+                          color:
+                              Colors.greenAccent,
+                        ),
+                        SizedBox(height: 8),
+                        Text(
+                          'الرسم البياني في المرحلة التالية',
+                          style: TextStyle(
+                            color: Colors.grey,
+                          ),
+                        ),
+                      ],
+                    ),
+                  ),
+                ),
+              ),
+
+              if (quote != null)
+                marketDetails(),
+            ],
+          ),
+        ),
+      ),
+    );
+  }
+
+  Widget quoteCard() {
+    final q = quote!;
+    final positive =
+        q.changePercent >= 0;
+
+    return Card(
+      child: Padding(
+        padding:
+            const EdgeInsets.all(20),
+        child: Column(
+          crossAxisAlignment:
+              CrossAxisAlignment.start,
+          children: [
+            const Text(
+              'السعر',
+              style:
+                  TextStyle(color: Colors.grey),
             ),
             Text(
-              '${stock.price.toStringAsFixed(2)} ر.س',
+              '${q.price.toStringAsFixed(2)} ر.س',
               style: const TextStyle(
-                fontSize: 34,
+                fontSize: 36,
                 fontWeight: FontWeight.bold,
               ),
             ),
             Text(
               '${positive ? '+' : ''}'
-              '${stock.change.toStringAsFixed(2)}%',
-              style: TextStyle(
-                fontSize: 18,
-                color: positive
-                    ? Colors.greenAccent
-                    : Colors.redAccent,
-                fontWeight: FontWeight.bold,
-              ),
-            ),
-            const SizedBox(height: 14),
-
-            SegmentedButton<int>(
-              segments: const [
-                ButtonSegment<int>(
-                  value: 0,
-                  label: Text('يومي'),
-                ),
-                ButtonSegment<int>(
-                  value: 1,
-                  label: Text('أسبوعي'),
-                ),
-                ButtonSegment<int>(
-                  value: 2,
-                  label: Text('شهري'),
-                ),
-                ButtonSegment<int>(
-                  value: 3,
-                  label: Text('سنوي'),
-                ),
-              ],
-              selected: {period},
-              showSelectedIcon: false,
-              onSelectionChanged: (value) {
-                setState(() {
-                  period = value.first;
-                });
-              },
-            ),
-
-            const SizedBox(height: 18),
-
-            const Card(
-              child: Padding(
-                padding: EdgeInsets.all(18),
-                child: SizedBox(
-                  height: 140,
-                  child: Center(
-                    child: Icon(
-                      Icons.show_chart,
-                      size: 110,
-                      color: Colors.greenAccent,
-                    ),
-                  ),
-                ),
-              ),
-            ),
-
-            const SizedBox(height: 14),
-
-            const Text(
-              'المؤشرات الفنية',
+              '${q.changePercent.toStringAsFixed(2)}%',
               style: TextStyle(
                 fontSize: 20,
                 fontWeight: FontWeight.bold,
+                color: positive
+                    ? Colors.greenAccent
+                    : Colors.redAccent,
               ),
             ),
-
-            const SizedBox(height: 10),
-
-            Wrap(
-              spacing: 8,
-              runSpacing: 8,
-              children: [
-                metric(
-                  'RSI',
-                  '57',
-                  'تجريبي',
-                ),
-                metric(
-                  'MACD',
-                  '+0.18',
-                  'تجريبي',
-                ),
-                metric(
-                  'MA20',
-                  '24.35',
-                  'تجريبي',
-                ),
-                metric(
-                  'MA50',
-                  '23.90',
-                  'تجريبي',
-                ),
-                metric(
-                  'MA200',
-                  '25.10',
-                  'تجريبي',
-                ),
-                metric(
-                  'الحجم',
-                  '12.4M',
-                  'تجريبي',
-                ),
-              ],
-            ),
-
-            const SizedBox(height: 16),
-
-            const Card(
-              child: ListTile(
-                leading: Icon(
-                  Icons.info_outline,
-                ),
-                title: Text(
-                  'المؤشرات الفنية',
-                ),
-                subtitle: Text(
-                  'السعر ونسبة التغير يتم تحديثهما من SAHMK عند نجاح الاتصال. المؤشرات الفنية والرسم البياني ما زالت تجريبية في هذه المرحلة.',
-                ),
+            if (q.delayed) ...[
+              const SizedBox(height: 10),
+              const Row(
+                children: [
+                  Icon(
+                    Icons.schedule,
+                    size: 17,
+                    color:
+                        Colors.orangeAccent,
+                  ),
+                  SizedBox(width: 6),
+                  Text(
+                    'البيانات متأخرة حسب باقة SAHMK',
+                    style: TextStyle(
+                      color:
+                          Colors.orangeAccent,
+                    ),
+                  ),
+                ],
               ),
-            ),
+            ],
           ],
         ),
       ),
     );
   }
 
-  Widget metric(
-    String title,
-    String value,
-    String status,
-  ) {
-    return Container(
-      width: 155,
-      padding: const EdgeInsets.all(12),
-      decoration: BoxDecoration(
-        color: const Color(0xFF142017),
-        borderRadius:
-            BorderRadius.circular(14),
-      ),
-      child: Column(
-        crossAxisAlignment:
-            CrossAxisAlignment.start,
-        children: [
-          Text(
-            title,
-            style: const TextStyle(
-              color: Colors.grey,
-            ),
-          ),
-          Text(
-            value,
-            style: const TextStyle(
+  Widget marketDetails() {
+    final q = quote!;
+
+    return Column(
+      children: [
+        const SizedBox(height: 8),
+        const Align(
+          alignment:
+              Alignment.centerRight,
+          child: Text(
+            'بيانات التداول',
+            style: TextStyle(
               fontSize: 20,
               fontWeight: FontWeight.bold,
             ),
           ),
-          Text(
-            status,
-            style: const TextStyle(
-              color: Colors.greenAccent,
-              fontSize: 12,
+        ),
+        const SizedBox(height: 8),
+        detail(
+          'الافتتاح',
+          formatPrice(q.open),
+        ),
+        detail(
+          'الأعلى',
+          formatPrice(q.high),
+        ),
+        detail(
+          'الأدنى',
+          formatPrice(q.low),
+        ),
+        detail(
+          'الإغلاق السابق',
+          formatPrice(q.previousClose),
+        ),
+        detail(
+          'حجم التداول',
+          q.volume == null
+              ? '-'
+              : q.volume!
+                  .toStringAsFixed(0),
+        ),
+        const SizedBox(height: 15),
+        const Card(
+          child: ListTile(
+            leading:
+                Icon(Icons.info_outline),
+            title:
+                Text('مصدر البيانات'),
+            subtitle: Text(
+              'بيانات السعر من SAHMK API. لا تمثل توصية شراء أو بيع.',
             ),
           ),
-        ],
+        ),
+      ],
+    );
+  }
+
+  Widget detail(
+    String title,
+    String value,
+  ) {
+    return Card(
+      child: ListTile(
+        title: Text(title),
+        trailing: Text(
+          value,
+          style: const TextStyle(
+            fontWeight: FontWeight.bold,
+          ),
+        ),
       ),
     );
+  }
+
+  String formatPrice(double? value) {
+    if (value == null) {
+      return '-';
+    }
+
+    return '${value.toStringAsFixed(2)} ر.س';
   }
 }
 
@@ -927,7 +1261,8 @@ class StockSearch
         onPressed: () {
           query = '';
         },
-        icon: const Icon(Icons.clear),
+        icon:
+            const Icon(Icons.clear),
       ),
     ];
   }
@@ -963,32 +1298,43 @@ class StockSearch
   Widget resultList(
     BuildContext context,
   ) {
+    final search =
+        query.trim().toLowerCase();
+
     final results = stocks.where(
       (stock) {
-        return stock.name.contains(query) ||
-            stock.symbol.contains(query);
+        return stock.name
+                .toLowerCase()
+                .contains(search) ||
+            stock.symbol
+                .toLowerCase()
+                .contains(search);
       },
     ).toList();
 
     return Directionality(
       textDirection: TextDirection.rtl,
-      child: ListView(
-        children: results.map(
-          (stock) {
-            return ListTile(
-              title: Text(stock.name),
-              subtitle: Text(stock.symbol),
-              trailing: Text(
-                '${stock.price.toStringAsFixed(2)} ر.س',
-              ),
-              onTap: () {
-                close(context, stock);
-                openStock(stock);
-              },
-            );
-          },
-        ).toList(),
+      child: ListView.builder(
+        itemCount: results.length,
+        itemBuilder: (context, index) {
+          final stock =
+              results[index];
+
+          return ListTile(
+            title:
+                Text(stock.name),
+            subtitle:
+                Text(stock.symbol),
+            trailing: const Icon(
+              Icons.chevron_left,
+            ),
+            onTap: () {
+              close(context, stock);
+              openStock(stock);
+            },
+          );
+        },
       ),
     );
   }
-}
+}                                      
