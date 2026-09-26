@@ -1,6 +1,14 @@
-import 'package:flutter/material.dart';
 import 'dart:convert';
+
+import 'package:flutter/material.dart';
 import 'package:http/http.dart' as http;
+
+const String sahmkApiKey =
+    String.fromEnvironment('SAHMK_API_KEY');
+
+const String sahmkBaseUrl =
+    'https://api.sahmk.sa/api/v1';
+
 void main() {
   runApp(const SaudiStockApp());
 }
@@ -12,7 +20,7 @@ class SaudiStockApp extends StatelessWidget {
   Widget build(BuildContext context) {
     return MaterialApp(
       debugShowCheckedModeBanner: false,
-      title: 'متابع الأسهم السعودية V2',
+      title: 'متابع الأسهم السعودية V3',
       theme: ThemeData(
         brightness: Brightness.dark,
         useMaterial3: true,
@@ -48,19 +56,156 @@ class HomePage extends StatefulWidget {
 class _HomePageState extends State<HomePage> {
   int page = 0;
 
+  bool isLoading = false;
+  String? apiError;
+  DateTime? lastUpdate;
+
   final Set<String> watch = {
     '2222',
     '1120',
   };
 
-  final List<Stock> stocks = const [
-    Stock('أرامكو السعودية', '2222', 24.80, 1.22),
-    Stock('مصرف الراجحي', '1120', 96.40, 0.84),
-    Stock('سابك', '2010', 58.75, -0.51),
-    Stock('الأهلي السعودي', '1180', 39.20, 1.03),
-    Stock('الاتصالات السعودية', '7010', 44.10, 0.46),
-    Stock('معادن', '1211', 54.60, -0.73),
+  List<Stock> stocks = [
+    const Stock('أرامكو السعودية', '2222', 24.80, 1.22),
+    const Stock('مصرف الراجحي', '1120', 96.40, 0.84),
+    const Stock('سابك', '2010', 58.75, -0.51),
+    const Stock('الأهلي السعودي', '1180', 39.20, 1.03),
+    const Stock('الاتصالات السعودية', '7010', 44.10, 0.46),
+    const Stock('معادن', '1211', 54.60, -0.73),
   ];
+
+  @override
+  void initState() {
+    super.initState();
+
+    WidgetsBinding.instance.addPostFrameCallback((_) {
+      loadMarketData();
+    });
+  }
+
+  Future<Stock> fetchStock(Stock stock) async {
+    final response = await http.get(
+      Uri.parse(
+        '$sahmkBaseUrl/quote/${stock.symbol}/',
+      ),
+      headers: {
+        'X-API-Key': sahmkApiKey,
+        'Accept': 'application/json',
+      },
+    );
+
+    if (response.statusCode != 200) {
+      throw Exception(
+        'SAHMK error ${response.statusCode}',
+      );
+    }
+
+    final dynamic decoded =
+        jsonDecode(response.body);
+
+    if (decoded is! Map<String, dynamic>) {
+      throw Exception(
+        'Unexpected SAHMK response',
+      );
+    }
+
+    final data = decoded;
+
+    final price = _readDouble(
+      data,
+      [
+        'price',
+        'last_price',
+        'last',
+        'close',
+      ],
+    );
+
+    final change = _readDouble(
+      data,
+      [
+        'change_percent',
+        'changePercent',
+        'percent_change',
+        'change_percentage',
+      ],
+    );
+
+    return Stock(
+      data['name']?.toString() ?? stock.name,
+      stock.symbol,
+      price ?? stock.price,
+      change ?? stock.change,
+    );
+  }
+
+  double? _readDouble(
+    Map<String, dynamic> data,
+    List<String> keys,
+  ) {
+    for (final key in keys) {
+      final value = data[key];
+
+      if (value == null) {
+        continue;
+      }
+
+      if (value is num) {
+        return value.toDouble();
+      }
+
+      final parsed = double.tryParse(
+        value
+            .toString()
+            .replaceAll('%', '')
+            .replaceAll(',', '')
+            .trim(),
+      );
+
+      if (parsed != null) {
+        return parsed;
+      }
+    }
+
+    return null;
+  }
+
+  Future<void> loadMarketData() async {
+    if (sahmkApiKey.isEmpty) {
+      setState(() {
+        apiError =
+            'SAHMK_API_KEY غير موجود في نسخة التطبيق.';
+      });
+      return;
+    }
+
+    setState(() {
+      isLoading = true;
+      apiError = null;
+    });
+
+    try {
+      final updatedStocks =
+          await Future.wait(
+        stocks.map(fetchStock),
+      );
+
+      if (!mounted) return;
+
+      setState(() {
+        stocks = updatedStocks;
+        isLoading = false;
+        lastUpdate = DateTime.now();
+      });
+    } catch (e) {
+      if (!mounted) return;
+
+      setState(() {
+        isLoading = false;
+        apiError = e.toString();
+      });
+    }
+  }
 
   @override
   Widget build(BuildContext context) {
@@ -83,6 +228,13 @@ class _HomePageState extends State<HomePage> {
           ),
           centerTitle: true,
           actions: [
+            if (page == 0)
+              IconButton(
+                tooltip: 'تحديث الأسعار',
+                onPressed:
+                    isLoading ? null : loadMarketData,
+                icon: const Icon(Icons.refresh),
+              ),
             IconButton(
               icon: const Icon(Icons.search),
               onPressed: () {
@@ -127,8 +279,12 @@ class _HomePageState extends State<HomePage> {
               label: 'المحفظة',
             ),
             NavigationDestination(
-              icon: Icon(Icons.notifications_outlined),
-              selectedIcon: Icon(Icons.notifications),
+              icon: Icon(
+                Icons.notifications_outlined,
+              ),
+              selectedIcon: Icon(
+                Icons.notifications,
+              ),
               label: 'التنبيهات',
             ),
           ],
@@ -138,69 +294,160 @@ class _HomePageState extends State<HomePage> {
   }
 
   Widget market() {
-    return ListView(
-      padding: const EdgeInsets.all(16),
-      children: [
-        const Text(
-          'نظرة عامة على السوق',
-          style: TextStyle(
-            fontSize: 24,
-            fontWeight: FontWeight.bold,
-          ),
-        ),
-        const SizedBox(height: 12),
-        const Card(
-          child: Padding(
-            padding: EdgeInsets.all(18),
-            child: Column(
-              crossAxisAlignment: CrossAxisAlignment.start,
-              children: [
-                Text(
-                  'مؤشر تاسي',
-                  style: TextStyle(fontSize: 16),
-                ),
-                SizedBox(height: 6),
-                Text(
-                  '11,245.30',
-                  style: TextStyle(
-                    fontSize: 32,
-                    fontWeight: FontWeight.bold,
-                  ),
-                ),
-                Text(
-                  '+0.76%',
-                  style: TextStyle(
-                    color: Colors.greenAccent,
-                    fontSize: 18,
-                    fontWeight: FontWeight.bold,
-                  ),
-                ),
-              ],
-            ),
-          ),
-        ),
-        const SizedBox(height: 18),
-        const Text(
-          'الأسهم',
-          style: TextStyle(
-            fontSize: 21,
-            fontWeight: FontWeight.bold,
-          ),
-        ),
-        const SizedBox(height: 8),
-        ...stocks.map(stockTile),
-        const Padding(
-          padding: EdgeInsets.all(14),
-          child: Text(
-            'V2 • البيانات الحالية تجريبية وسيتم ربط بيانات السوق الحقيقية في V3.',
-            textAlign: TextAlign.center,
+    return RefreshIndicator(
+      onRefresh: loadMarketData,
+      child: ListView(
+        physics:
+            const AlwaysScrollableScrollPhysics(),
+        padding: const EdgeInsets.all(16),
+        children: [
+          const Text(
+            'نظرة عامة على السوق',
             style: TextStyle(
-              color: Colors.grey,
-              fontSize: 12,
+              fontSize: 24,
+              fontWeight: FontWeight.bold,
             ),
           ),
-        ),
-      ],
+          const SizedBox(height: 12),
+
+          if (isLoading)
+            const Card(
+              child: Padding(
+                padding: EdgeInsets.all(18),
+                child: Row(
+                  children: [
+                    SizedBox(
+                      width: 22,
+                      height: 22,
+                      child:
+                          CircularProgressIndicator(
+                        strokeWidth: 2,
+                      ),
+                    ),
+                    SizedBox(width: 14),
+                    Text(
+                      'جاري تحديث بيانات السوق...',
+                    ),
+                  ],
+                ),
+              ),
+            ),
+
+          if (apiError != null)
+            Card(
+              child: Padding(
+                padding:
+                    const EdgeInsets.all(14),
+                child: Column(
+                  children: [
+                    const Row(
+                      children: [
+                        Icon(
+                          Icons.error_outline,
+                          color: Colors.orangeAccent,
+                        ),
+                        SizedBox(width: 8),
+                        Expanded(
+                          child: Text(
+                            'تعذر تحديث بيانات SAHMK',
+                            style: TextStyle(
+                              fontWeight:
+                                  FontWeight.bold,
+                            ),
+                          ),
+                        ),
+                      ],
+                    ),
+                    const SizedBox(height: 8),
+                    Text(
+                      apiError!,
+                      style: const TextStyle(
+                        color: Colors.grey,
+                        fontSize: 12,
+                      ),
+                    ),
+                    const SizedBox(height: 8),
+                    FilledButton.icon(
+                      onPressed: loadMarketData,
+                      icon:
+                          const Icon(Icons.refresh),
+                      label:
+                          const Text('إعادة المحاولة'),
+                    ),
+                  ],
+                ),
+              ),
+            ),
+
+          Card(
+            child: Padding(
+              padding: const EdgeInsets.all(18),
+              child: Column(
+                crossAxisAlignment:
+                    CrossAxisAlignment.start,
+                children: [
+                  const Text(
+                    'بيانات الأسهم السعودية',
+                    style: TextStyle(
+                      fontSize: 16,
+                    ),
+                  ),
+                  const SizedBox(height: 6),
+                  Text(
+                    apiError == null &&
+                            lastUpdate != null
+                        ? 'متصل بـ SAHMK'
+                        : 'بانتظار بيانات SAHMK',
+                    style: TextStyle(
+                      fontSize: 22,
+                      fontWeight: FontWeight.bold,
+                      color: apiError == null &&
+                              lastUpdate != null
+                          ? Colors.greenAccent
+                          : Colors.orangeAccent,
+                    ),
+                  ),
+                  if (lastUpdate != null)
+                    Text(
+                      'آخر تحديث: '
+                      '${lastUpdate!.hour.toString().padLeft(2, '0')}:'
+                      '${lastUpdate!.minute.toString().padLeft(2, '0')}',
+                      style: const TextStyle(
+                        color: Colors.grey,
+                      ),
+                    ),
+                ],
+              ),
+            ),
+          ),
+
+          const SizedBox(height: 18),
+          const Text(
+            'الأسهم',
+            style: TextStyle(
+              fontSize: 21,
+              fontWeight: FontWeight.bold,
+            ),
+          ),
+          const SizedBox(height: 8),
+
+          ...stocks.map(stockTile),
+
+          Padding(
+            padding: const EdgeInsets.all(14),
+            child: Text(
+              lastUpdate != null
+                  ? 'V3 • بيانات الأسهم من SAHMK API.'
+                  : 'V3 • سيتم استبدال القيم الاحتياطية عند نجاح الاتصال بـ SAHMK.',
+              textAlign: TextAlign.center,
+              style: const TextStyle(
+                color: Colors.grey,
+                fontSize: 12,
+              ),
+            ),
+          ),
+        ],
+      ),
     );
   }
 
@@ -229,8 +476,10 @@ class _HomePageState extends State<HomePage> {
           mainAxisSize: MainAxisSize.min,
           children: [
             Column(
-              mainAxisAlignment: MainAxisAlignment.center,
-              crossAxisAlignment: CrossAxisAlignment.end,
+              mainAxisAlignment:
+                  MainAxisAlignment.center,
+              crossAxisAlignment:
+                  CrossAxisAlignment.end,
               children: [
                 Text(
                   '${stock.price.toStringAsFixed(2)} ر.س',
@@ -239,7 +488,8 @@ class _HomePageState extends State<HomePage> {
                   ),
                 ),
                 Text(
-                  '${positive ? '+' : ''}${stock.change.toStringAsFixed(2)}%',
+                  '${positive ? '+' : ''}'
+                  '${stock.change.toStringAsFixed(2)}%',
                   style: TextStyle(
                     color: positive
                         ? Colors.greenAccent
@@ -252,7 +502,9 @@ class _HomePageState extends State<HomePage> {
             IconButton(
               onPressed: () {
                 setState(() {
-                  if (watch.contains(stock.symbol)) {
+                  if (watch.contains(
+                    stock.symbol,
+                  )) {
                     watch.remove(stock.symbol);
                   } else {
                     watch.add(stock.symbol);
@@ -263,9 +515,10 @@ class _HomePageState extends State<HomePage> {
                 watch.contains(stock.symbol)
                     ? Icons.star
                     : Icons.star_border,
-                color: watch.contains(stock.symbol)
-                    ? Colors.amber
-                    : null,
+                color:
+                    watch.contains(stock.symbol)
+                        ? Colors.amber
+                        : null,
               ),
             ),
           ],
@@ -277,7 +530,8 @@ class _HomePageState extends State<HomePage> {
   Widget watchPage() {
     final items = stocks
         .where(
-          (stock) => watch.contains(stock.symbol),
+          (stock) =>
+              watch.contains(stock.symbol),
         )
         .toList();
 
@@ -383,21 +637,26 @@ class _HomePageState extends State<HomePage> {
           child: ListTile(
             leading: Icon(Icons.price_change),
             title: Text('تنبيه السعر'),
-            subtitle: Text('أرامكو عند 25.00 ر.س'),
+            subtitle:
+                Text('أرامكو عند 25.00 ر.س'),
           ),
         ),
         Card(
           child: ListTile(
             leading: Icon(Icons.show_chart),
             title: Text('اختراق مقاومة'),
-            subtitle: Text('الراجحي أعلى من 98.00 ر.س'),
+            subtitle: Text(
+              'الراجحي أعلى من 98.00 ر.س',
+            ),
           ),
         ),
         Card(
           child: ListTile(
             leading: Icon(Icons.speed),
             title: Text('RSI'),
-            subtitle: Text('التشبع الشرائي والبيعي'),
+            subtitle: Text(
+              'التشبع الشرائي والبيعي',
+            ),
           ),
         ),
         Card(
@@ -441,7 +700,8 @@ class StockDetails extends StatefulWidget {
   }
 }
 
-class _StockDetailsState extends State<StockDetails> {
+class _StockDetailsState
+    extends State<StockDetails> {
   int period = 0;
 
   @override
@@ -473,7 +733,8 @@ class _StockDetailsState extends State<StockDetails> {
               ),
             ),
             Text(
-              '${positive ? '+' : ''}${stock.change.toStringAsFixed(2)}%',
+              '${positive ? '+' : ''}'
+              '${stock.change.toStringAsFixed(2)}%',
               style: TextStyle(
                 fontSize: 18,
                 color: positive
@@ -483,6 +744,7 @@ class _StockDetailsState extends State<StockDetails> {
               ),
             ),
             const SizedBox(height: 14),
+
             SegmentedButton<int>(
               segments: const [
                 ButtonSegment<int>(
@@ -510,7 +772,9 @@ class _StockDetailsState extends State<StockDetails> {
                 });
               },
             ),
+
             const SizedBox(height: 18),
+
             const Card(
               child: Padding(
                 padding: EdgeInsets.all(18),
@@ -526,7 +790,9 @@ class _StockDetailsState extends State<StockDetails> {
                 ),
               ),
             ),
+
             const SizedBox(height: 14),
+
             const Text(
               'المؤشرات الفنية',
               style: TextStyle(
@@ -534,7 +800,9 @@ class _StockDetailsState extends State<StockDetails> {
                 fontWeight: FontWeight.bold,
               ),
             ),
+
             const SizedBox(height: 10),
+
             Wrap(
               spacing: 8,
               runSpacing: 8,
@@ -542,66 +810,48 @@ class _StockDetailsState extends State<StockDetails> {
                 metric(
                   'RSI',
                   '57',
-                  'محايد',
+                  'تجريبي',
                 ),
                 metric(
                   'MACD',
                   '+0.18',
-                  'إيجابي',
+                  'تجريبي',
                 ),
                 metric(
                   'MA20',
                   '24.35',
-                  'فوق المتوسط',
+                  'تجريبي',
                 ),
                 metric(
                   'MA50',
                   '23.90',
-                  'فوق المتوسط',
+                  'تجريبي',
                 ),
                 metric(
                   'MA200',
                   '25.10',
-                  'دون المتوسط',
+                  'تجريبي',
                 ),
                 metric(
                   'الحجم',
                   '12.4M',
-                  'طبيعي',
+                  'تجريبي',
                 ),
               ],
             ),
+
             const SizedBox(height: 16),
-            Row(
-              children: [
-                Expanded(
-                  child: level(
-                    'الدعم',
-                    (stock.price * 0.96)
-                        .toStringAsFixed(2),
-                  ),
-                ),
-                const SizedBox(width: 8),
-                Expanded(
-                  child: level(
-                    'المقاومة',
-                    (stock.price * 1.04)
-                        .toStringAsFixed(2),
-                  ),
-                ),
-              ],
-            ),
-            const SizedBox(height: 14),
+
             const Card(
               child: ListTile(
                 leading: Icon(
                   Icons.info_outline,
                 ),
                 title: Text(
-                  'ملخص فني',
+                  'المؤشرات الفنية',
                 ),
                 subtitle: Text(
-                  'المؤشرات في V2 تجريبية وليست توصية شراء أو بيع.',
+                  'السعر ونسبة التغير يتم تحديثهما من SAHMK عند نجاح الاتصال. المؤشرات الفنية والرسم البياني ما زالت تجريبية في هذه المرحلة.',
                 ),
               ),
             ),
@@ -621,10 +871,12 @@ class _StockDetailsState extends State<StockDetails> {
       padding: const EdgeInsets.all(12),
       decoration: BoxDecoration(
         color: const Color(0xFF142017),
-        borderRadius: BorderRadius.circular(14),
+        borderRadius:
+            BorderRadius.circular(14),
       ),
       child: Column(
-        crossAxisAlignment: CrossAxisAlignment.start,
+        crossAxisAlignment:
+            CrossAxisAlignment.start,
         children: [
           Text(
             title,
@@ -650,37 +902,10 @@ class _StockDetailsState extends State<StockDetails> {
       ),
     );
   }
-
-  Widget level(
-    String title,
-    String value,
-  ) {
-    return Card(
-      child: Padding(
-        padding: const EdgeInsets.all(14),
-        child: Column(
-          children: [
-            Text(
-              title,
-              style: const TextStyle(
-                color: Colors.grey,
-              ),
-            ),
-            Text(
-              '$value ر.س',
-              style: const TextStyle(
-                fontSize: 20,
-                fontWeight: FontWeight.bold,
-              ),
-            ),
-          ],
-        ),
-      ),
-    );
-  }
 }
 
-class StockSearch extends SearchDelegate<Stock?> {
+class StockSearch
+    extends SearchDelegate<Stock?> {
   final List<Stock> stocks;
   final void Function(Stock) openStock;
 
